@@ -28,6 +28,7 @@
     <module>vertx-cluster-parent</module>
     <module>vertx-cluster-common</module>
     <module>vertx-http</module>
+    <module>vertx-gui</module>
   </modules>
 
 

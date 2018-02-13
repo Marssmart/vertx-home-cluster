@@ -17,6 +17,8 @@ package org.deer.vertx.sensor;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
 import org.deer.vertx.cluster.common.Clustered;
+import org.deer.vertx.cluster.common.NodeReporter;
+import org.deer.vertx.cluster.common.dto.ClusterNode;
 
 public class SensorVerticle extends AbstractVerticle {
 
@@ -25,6 +27,7 @@ public class SensorVerticle extends AbstractVerticle {
       final Vertx vertx = event.result();
 
       vertx.deployVerticle("org.deer.vertx.sensor.OsVerticle");
+      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("os-node"));
     });
   }
 }

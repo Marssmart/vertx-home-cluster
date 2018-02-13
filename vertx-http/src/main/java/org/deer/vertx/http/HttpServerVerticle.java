@@ -24,7 +24,11 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.CorsHandler;
+import java.util.stream.Collectors;
 import org.deer.vertx.cluster.common.Clustered;
+import org.deer.vertx.cluster.common.NodeReporter;
+import org.deer.vertx.cluster.common.dto.ClusterNode;
 
 public class HttpServerVerticle extends AbstractVerticle {
 
@@ -33,6 +37,7 @@ public class HttpServerVerticle extends AbstractVerticle {
       final Vertx vertx = event.result();
 
       vertx.deployVerticle("org.deer.vertx.http.HttpServerVerticle");
+      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("http-node"));
     });
   }
 
@@ -41,6 +46,16 @@ public class HttpServerVerticle extends AbstractVerticle {
     final HttpServer httpServer = vertx.createHttpServer();
 
     final Router router = Router.router(vertx);
+
+    router.route().handler(CorsHandler.create("*")
+        .allowedMethod(io.vertx.core.http.HttpMethod.GET)
+        .allowedMethod(io.vertx.core.http.HttpMethod.POST)
+        .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
+        .allowedHeader("Access-Control-Request-Method")
+        .allowedHeader("Access-Control-Allow-Credentials")
+        .allowedHeader("Access-Control-Allow-Origin")
+        .allowedHeader("Access-Control-Allow-Headers")
+        .allowedHeader("Content-Type"));
 
     router.route("/api/v1/os-info")
         .handler(event -> vertx.eventBus().send("os-info", null,
@@ -60,6 +75,27 @@ public class HttpServerVerticle extends AbstractVerticle {
         .handler(event -> vertx.eventBus().send("network-device-address-info",
             getIndexParam(event),
             jsonObjectToStringPretty(event)));
+
+    router.route("/api/v1/cluster/nodes")
+        .handler(event -> new NodeReporter(vertx).reportRunningNodes()
+            .setHandler(nodesResult -> {
+              if (nodesResult.succeeded()) {
+                event.response().end(new JsonArray(nodesResult.result()
+                    .stream()
+                    .map(JsonObject::mapFrom)
+                    .collect(Collectors.toList())).toBuffer());
+              } else {
+                event.fail(nodesResult.cause());
+              }
+            }));
+
+    router.route("/api/v1/cluster/nodes/shutdown")
+        .handler(
+            event -> {
+              final String shutdownAddress = event.request().params().get("shutdown-address");
+              vertx.eventBus().send(shutdownAddress, null);
+              event.response().end("Shutdown signal send to " + shutdownAddress);
+            });
 
     httpServer.requestHandler(router::accept).listen(8444);
   }

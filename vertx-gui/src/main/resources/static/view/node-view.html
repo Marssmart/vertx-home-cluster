@@ -1,0 +1,146 @@
+<!--
+  ~ Copyright 2018 Ján Srniček
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~  software distributed under the License is distributed
+  ~ on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  -->
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../bower_components/paper-progress/paper-progress.html">
+<link rel="import" href="../bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="../bower_components/paper-card/paper-card.html">
+<link rel="import" href="../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../bower_components/paper-toast/paper-toast.html">
+<link rel="import" href="../bower_components/paper-styles/paper-styles.html">
+<link rel="import" href="../bower_components/neon-animation/web-animations.html">
+<link rel="import" href="../bower_components/neon-animation/animations/scale-up-animation.html">
+<link rel="import" href="../bower_components/neon-animation/animations/fade-out-animation.html">
+<dom-module id="node-view">
+    <template>
+        <style is="node-view-style">
+            .close-button {
+                color: red;
+            }
+
+            .refresh-button {
+                color: blue;
+            }
+
+            .apply-button {
+                color: var(--google-green-500);
+            }
+
+            paper-card {
+                margin-bottom: 5px;
+                margin-left: 5px;
+            }
+
+
+        </style>
+
+        <iron-ajax
+                auto
+                url="http://localhost:8444/api/v1/cluster/nodes"
+                handle-as="json"
+                last-response="{{clusterNodes}}"
+                debounce-duration="300"></iron-ajax>
+
+        <iron-ajax id="restSender" handle-as="json" contentType="application/json"></iron-ajax>
+
+        <paper-toast id="toast"></paper-toast>
+
+        <div>
+            <template is="dom-repeat" items="[[clusterNodes]]">
+                <paper-card heading="{{item.name}}">
+                    <div class="card-content">
+                        <div style="color:grey;">{{item.timeCreated}}</div>
+                    </div>
+                    <div class="card-actions">
+                        <div class="horizontal justified">
+                            <paper-icon-button icon="icons:autorenew"></paper-icon-button>
+                            <paper-icon-button icon="icons:close" class="close-button"
+                                               on-click="showTerminationDialog"></paper-icon-button>
+                        </div>
+                    </div>
+                </paper-card>
+            </template>
+            <paper-dialog id="terminationDialog" entry-animation="scale-up-animation"
+                          exit-animation="fade-out-animation" with-backdrop>
+                <h2>Warning</h2>
+                <p>Are you sure you want to terminate {{item.name}} ???</p>
+                <div class="buttons">
+                    <paper-icon-button dialog-confirm autofocus icon="icons:done" class="apply"
+                                       on-click="terminateNode">
+                    </paper-icon-button>
+                    <paper-icon-button dialog-dismiss icon="icons:close"
+                                       class="close-button"></paper-icon-button>
+                </div>
+            </paper-dialog>
+        </div>
+    </template>
+    <script>
+        class NodeView extends Polymer.Element {
+            static get is() {
+                return 'node-view';
+            }
+
+            static get properties() {
+                return {
+                    toTerminate: {
+                        type: Object
+                    },
+                    clusterNodes: {
+                        type: Array,
+                        notify: true
+                    }
+                };
+            }
+
+            showTerminationDialog(event) {
+                this.$.toTerminate = event.model.item;
+                this.$.terminationDialog.open();
+            }
+
+            terminateNode(event) {
+                this.toastMessage("Terminating...");
+                let restSender = this.$.restSender;
+                restSender.url = "http://localhost:8444/api/v1/cluster/nodes/shutdown";
+                restSender.params = {"shutdown-address": this.$.toTerminate.shutdownAddress};
+
+                let target = this;
+                let nodes = this.clusterNodes;
+                let removedNode = this.$.toTerminate;
+
+                restSender.generateRequest().completes
+                    .then(function (req) {
+                        target.toastMessage("Terminated");
+                        this.splice('clusterNodes', nodes.indexOf(removedNode), 1);
+                    }, function (failedReq) {
+                        target.toastMessage("Termination failed");
+                        console.log(failedReq);
+                    });
+            }
+
+            onNodeTermination() {
+                this.toastMessage("Terminated");
+            }
+
+            toastMessage(msg) {
+                this.$.toast.text = msg;
+                this.$.toast.open();
+            }
+        }
+
+        customElements.define(NodeView.is, NodeView);
+
+    </script>
+</dom-module>

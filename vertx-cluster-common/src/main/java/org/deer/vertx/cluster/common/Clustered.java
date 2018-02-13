@@ -23,7 +23,7 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager;
 public interface Clustered {
 
   static void startClusteredVertx(Handler<AsyncResult<Vertx>> handler) {
-    Vertx.factory.clusteredVertx(defaultOptions(),
+    Vertx.clusteredVertx(defaultOptions(),
         handler);
   }
 

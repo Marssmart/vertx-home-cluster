@@ -6,3 +6,6 @@ start "Sensor node" java -jar ..\vertx-sensors\target\vertx-sensors-1.0-SNAPSHOT
 
 ECHO Starting Http server node
 start "Http server node" java -jar ..\vertx-http\target\vertx-http-1.0-SNAPSHOT-fat.jar
+
+ECHO Starting Gui node
+start "Gui node" java -jar ..\vertx-gui\target\vertx-gui-1.0-SNAPSHOT-fat.jar

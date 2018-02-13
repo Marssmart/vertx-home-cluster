@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.deer.vertx.cluster.common.Clustered;
+import org.deer.vertx.cluster.common.NodeReporter;
+import org.deer.vertx.cluster.common.dto.ClusterNode;
 import org.deer.vertx.network.dto.NetworkInterfaceInfo;
 import org.deer.vertx.network.dto.address.NetworkInterfaceAddressesInfo;
 import org.deer.vertx.network.dto.flags.NetworkInterfaceFlagsInfo;
@@ -38,6 +40,7 @@ public class NetworkVerticle extends AbstractVerticle {
       final Vertx vertx = event.result();
 
       vertx.deployVerticle("org.deer.vertx.network.NetworkVerticle");
+      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("network-node"));
     });
   }
 
