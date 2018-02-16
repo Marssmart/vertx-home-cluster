@@ -22,12 +22,24 @@ import org.deer.vertx.cluster.common.dto.ClusterNode;
 
 public class SensorVerticle extends AbstractVerticle {
 
+  private NodeReporter nodeReporter;
+
   public static void main(String[] args) {
     Clustered.startClusteredVertx(event -> {
       final Vertx vertx = event.result();
-
-      vertx.deployVerticle("org.deer.vertx.sensor.OsVerticle");
-      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("os-node"));
+      vertx.deployVerticle("org.deer.vertx.sensor.SensorVerticle");
     });
+  }
+
+  @Override
+  public void start() throws Exception {
+    vertx.deployVerticle("org.deer.vertx.sensor.OsVerticle");
+    nodeReporter = new NodeReporter(vertx);
+    nodeReporter.reportNodeStarted(new ClusterNode().setName("os-node"));
+  }
+
+  @Override
+  public void stop() throws Exception {
+    nodeReporter.close();
   }
 }

@@ -16,6 +16,7 @@ package org.deer.vertx.cluster.common;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.MessageConsumer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.AsyncMap;
 import java.util.List;
@@ -24,7 +25,8 @@ import org.deer.vertx.cluster.common.dto.ClusterNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class NodeReporter {
+
+public class NodeReporter implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(NodeReporter.class);
 
@@ -32,6 +34,8 @@ public class NodeReporter {
 
   private final Vertx vertx;
   private final String nodeMapName;
+  private MessageConsumer<Object> shutdownConsumer;
+  private MessageConsumer<Object> pingConsumer;
 
   public NodeReporter(Vertx vertx) {
     this.vertx = vertx;
@@ -47,10 +51,12 @@ public class NodeReporter {
     final Future<Void> reportFuture = Future.future();
     vertx.sharedData().getClusterWideMap(nodeMapName, mapEvent -> {
       if (mapEvent.succeeded()) {
-        node.setShutdownAddress(registerShutdownEvent(vertx, node.getTimeCreated()));
+        final long timeCreated = node.getTimeCreated();
+        node.setShutdownAddress(registerShutdownEvent(vertx, timeCreated));
+        node.setPingAddress(registerPingEvent(vertx, timeCreated));
 
         final AsyncMap<Object, Object> clusterNodes = mapEvent.result();
-        clusterNodes.put(node.getTimeCreated(), JsonObject.mapFrom(node).encode(), putEvent -> {
+        clusterNodes.put(timeCreated, JsonObject.mapFrom(node).encode(), putEvent -> {
           if (putEvent.succeeded()) {
             reportFuture.complete();
             LOG.info("Node {} successfully reported to cluster management", node.getName());
@@ -88,15 +94,20 @@ public class NodeReporter {
 
   private String registerShutdownEvent(final Vertx vertx, final long id) {
     String shutdownAddress = id + "-shutdown";
-    vertx.eventBus().consumer(shutdownAddress).handler(event -> {
-      unregisterNode(id).setHandler(unregisterEvent -> {
-        vertx.close();
-        vertx.nettyEventLoopGroup().shutdownGracefully()
-            .addListener(future -> System.exit(0));
-
-      });
-    });
+    shutdownConsumer = vertx.eventBus().consumer(shutdownAddress);
+    shutdownConsumer.handler(event -> unregisterNode(id).setHandler(unregisterEvent -> {
+      vertx.close();
+      vertx.nettyEventLoopGroup().shutdownGracefully()
+          .addListener(future -> System.exit(0));
+    }));
     return shutdownAddress;
+  }
+
+  private String registerPingEvent(final Vertx vertx, final long id) {
+    String pingAddress = id + "-ping";
+    pingConsumer = vertx.eventBus().consumer(pingAddress);
+    pingConsumer.handler(event -> event.reply("OK"));
+    return pingAddress;
   }
 
   public Future<List<ClusterNode>> reportRunningNodes() {
@@ -121,5 +132,16 @@ public class NodeReporter {
       }
     });
     return activeNodes;
+  }
+
+  @Override
+  public void close() throws Exception {
+    if (shutdownConsumer != null) {
+      shutdownConsumer.unregister();
+    }
+
+    if (pingConsumer != null) {
+      pingConsumer.unregister();
+    }
   }
 }

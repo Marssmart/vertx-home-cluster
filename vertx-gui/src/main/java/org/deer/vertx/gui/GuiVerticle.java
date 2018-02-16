@@ -17,7 +17,8 @@ import org.deer.vertx.cluster.common.dto.ClusterNode;
 
 public class GuiVerticle extends AbstractVerticle {
 
-  private static final boolean TEST = true;
+  private static final boolean TEST = false;
+  private static NodeReporter nodeReporter;
 
   public static void main(String[] args) {
 
@@ -29,7 +30,8 @@ public class GuiVerticle extends AbstractVerticle {
       }
 
       vertx.deployVerticle("org.deer.vertx.gui.GuiVerticle", deployEvent -> {
-        new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("gui-node"));
+        nodeReporter = new NodeReporter(vertx);
+        nodeReporter.reportNodeStarted(new ClusterNode().setName("gui-node"));
         try {
           Desktop.getDesktop().browse(new URI("http://localhost:80"));
         } catch (IOException | URISyntaxException e) {
@@ -60,5 +62,10 @@ public class GuiVerticle extends AbstractVerticle {
     router.route("/view/*").handler(StaticHandler.create("static/view"));
 
     server.requestHandler(router::accept).listen();
+  }
+
+  @Override
+  public void stop() throws Exception {
+    nodeReporter.close();
   }
 }

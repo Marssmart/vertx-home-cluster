@@ -35,12 +35,13 @@ public class NetworkVerticle extends AbstractVerticle {
   public static final int ERROR_INTERFACE_INFO_FAILED = 1;
   public static final int ERROR_INTERFACE_INDEX_NOT_FOUND = 2;
 
+  private NodeReporter nodeReporter;
+
   public static void main(String[] args) {
     Clustered.startClusteredVertx(event -> {
       final Vertx vertx = event.result();
 
       vertx.deployVerticle("org.deer.vertx.network.NetworkVerticle");
-      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("network-node"));
     });
   }
 
@@ -106,5 +107,12 @@ public class NetworkVerticle extends AbstractVerticle {
             networkDeviceAddressInfoRequest.fail(ERROR_INTERFACE_INFO_FAILED, e.getMessage());
           }
         });
+    nodeReporter = new NodeReporter(vertx);
+    nodeReporter.reportNodeStarted(new ClusterNode().setName("network-node"));
+  }
+
+  @Override
+  public void stop() throws Exception {
+    nodeReporter.close();
   }
 }

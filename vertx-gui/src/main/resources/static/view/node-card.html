@@ -1,0 +1,196 @@
+<!--
+  ~ Copyright 2018 Ján Srniček
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~  software distributed under the License is distributed
+  ~ on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  -->
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../bower_components/paper-card/paper-card.html">
+<link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../bower_components/paper-toast/paper-toast.html">
+<link rel="import" href="../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../bower_components/paper-checkbox/paper-checkbox.html">
+<dom-module id="node-card">
+    <template>
+        <style is="node-card-style">
+            .close-button {
+                color: var(--google-red-500);
+            }
+
+            .details-button {
+                color: var(--google-grey-500);
+            }
+
+            .apply-button {
+                color: var(--google-green-300);
+            }
+
+            .no-access-node {
+            / / animation: no-access-node-animation 2500 ms;
+                transition: background-color 0.5s ease;
+                background-color: var(--google-red-100);
+            }
+
+            .access-node {
+            / / animation: access-node-animation 2500 ms;
+                transition: background-color 0.5s ease;
+                background-color: var(--google-green-300);
+            }
+
+            paper-card {
+                margin-bottom: 5px;
+                margin-left: 5px;
+            }
+        </style>
+
+        <iron-ajax id="pingAjax"
+                   auto
+                   url="http://localhost:8444/api/v1/cluster/nodes/ping"
+                   handle-as="json"
+                   params="{{pingParams}}"
+                   on-response="onPingResponse"
+                   on-error="onPingError"
+                   debounce-duration="300"></iron-ajax>
+
+        <iron-ajax id="terminationAjax"
+                   url="http://localhost:8444/api/v1/cluster/nodes/shutdown"
+                   handle-as="json"
+                   params="{{terminationParams}}"
+                   on-response="onTerminationResponse"
+                   on-error="onTerminationError"
+                   debounce-duration="300"></iron-ajax>
+
+        <paper-card id="card" heading="{{current.name}}">
+            <div class="card-content">
+                <div style="color:grey;">{{current.timeCreated}}</div>
+            </div>
+            <div class="card-actions">
+                <div class="horizontal justified">
+                    <paper-checkbox checked="{{pingEnabled}}">Ping</paper-checkbox>
+                    <paper-icon-button icon="icons:dashboard" class="details-button"></paper-icon-button>
+                    <paper-icon-button icon="icons:close" class="close-button"
+                                       on-click="showTerminationDialog"></paper-icon-button>
+                </div>
+            </div>
+        </paper-card>
+        <paper-dialog id="terminationDialog" with-backdrop>
+            <h2>Warning</h2>
+            <p>Are you sure you want to terminate {{item.name}} ???</p>
+            <div class="buttons">
+                <paper-icon-button dialog-confirm icon="icons:check" on-click="terminateNode"
+                                   class="apply-button"></paper-icon-button>
+                <paper-icon-button dialog-dismiss icon="icons:close"
+                                   class="close-button"></paper-icon-button>
+            </div>
+        </paper-dialog>
+
+        <paper-toast id="toast"></paper-toast>
+    </template>
+    <script>
+        class NodeCard extends Polymer.Element {
+            static get is() {
+                return 'node-card';
+            }
+
+            static get properties() {
+                return {
+                    current: {
+                        type: Object
+                    },
+                    pingEnabled: {
+                        type: Boolean,
+                        notify: true,
+                        value: true
+                    },
+                    pingParams: {
+                        type: Object,
+                        computed: 'computePingParams(current)'
+                    },
+                    terminationParams: {
+                        type: Object,
+                        computed: 'computeTerminationParams(current)'
+                    },
+                    lastPingSuccessful: {
+                        type: Boolean,
+                        value: false
+                    }
+                };
+            }
+
+            computePingParams(current) {
+                return {"ping-address": current.pingAddress};
+            }
+
+            computeTerminationParams(current) {
+                return {"shutdown-address": current.shutdownAddress};
+            }
+
+            ready() {
+                super.ready();
+                setInterval(function () {
+                    if (this.pingEnabled) {
+                        this.$.pingAjax.generateRequest();
+                    }
+                }.bind(this), 3000);
+            }
+
+            onPingResponse(event) {
+                if (!this.lastPingSuccessful) {
+                    this.lastPingSuccessful = true;
+                    this.$.card.className = "access-node";
+                }
+            }
+
+            onTerminationResponse(event) {
+                this.toastMessage("Successfully terminated " + this.current.name);
+
+                this.dispatchEvent(new CustomEvent('clusterNodeTerminationEvent', {
+                    detail: {
+                        node: this.current,
+                    },
+                    composed: true,
+                    bubbles: true
+                }));
+            }
+
+            onPingError(event) {
+                if (this.lastPingSuccessful) {
+                    this.lastPingSuccessful = false;
+                    this.$.card.className = "no-access-node";
+                }
+            }
+
+            onTerminationError(event) {
+                this.toastMessage("Error while terminating " + this.current.name);
+            }
+
+            toastMessage(msg) {
+                this.$.toast.text = msg;
+                this.$.toast.open();
+            }
+
+            showTerminationDialog(event) {
+                this.$.terminationDialog.open();
+            }
+
+            terminateNode() {
+                this.$.terminationAjax.generateRequest();
+            }
+
+            onNodeTermination() {
+                this.toastMessage("Terminated");
+            }
+        }
+
+        customElements.define(NodeCard.is, NodeCard);
+
+    </script>
+</dom-module>

@@ -32,12 +32,13 @@ import org.deer.vertx.cluster.common.dto.ClusterNode;
 
 public class HttpServerVerticle extends AbstractVerticle {
 
+  private NodeReporter nodeReporter;
+
   public static void main(String[] args) {
     Clustered.startClusteredVertx(event -> {
       final Vertx vertx = event.result();
 
       vertx.deployVerticle("org.deer.vertx.http.HttpServerVerticle");
-      new NodeReporter(vertx).reportNodeStarted(new ClusterNode().setName("http-node"));
     });
   }
 
@@ -97,7 +98,27 @@ public class HttpServerVerticle extends AbstractVerticle {
               event.response().end("Shutdown signal send to " + shutdownAddress);
             });
 
+    router.route("/api/v1/cluster/nodes/ping")
+        .handler(
+            event -> {
+              final String pingAddress = event.request().params().get("ping-address");
+              vertx.eventBus().send(pingAddress, null, replyEvent -> {
+                if (replyEvent.succeeded()) {
+                  event.response().end("Ping successfull to " + pingAddress);
+                } else {
+                  event.fail(replyEvent.cause());
+                }
+              });
+            });
+
     httpServer.requestHandler(router::accept).listen(8444);
+    nodeReporter = new NodeReporter(vertx);
+    nodeReporter.reportNodeStarted(new ClusterNode().setName("http-node"));
+  }
+
+  @Override
+  public void stop() throws Exception {
+    nodeReporter.close();
   }
 
   private static Handler<AsyncResult<Message<Object>>> jsonArrayToStringPretty(

@@ -19,6 +19,7 @@ public class ClusterNode {
   private long timeCreated;
   private String name;
   private String shutdownAddress;
+  private String pingAddress;
 
   public ClusterNode() {
     timeCreated = System.currentTimeMillis();
@@ -48,5 +49,13 @@ public class ClusterNode {
 
   public void setShutdownAddress(String shutdownAddress) {
     this.shutdownAddress = shutdownAddress;
+  }
+
+  public String getPingAddress() {
+    return pingAddress;
+  }
+
+  public void setPingAddress(String pingAddress) {
+    this.pingAddress = pingAddress;
   }
 }

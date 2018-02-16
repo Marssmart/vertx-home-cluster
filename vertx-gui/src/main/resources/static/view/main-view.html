@@ -20,82 +20,88 @@
 <link rel="import" href="../bower_components/iron-icons/iron-icons.html">
 <link rel="import" href="../bower_components/paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../bower_components/paper-progress/paper-progress.html">
+<link rel="import" href="../bower_components/paper-styles/paper-styles.html">
 <link rel="import" href="/view/node-view.html">
+
 <dom-module id="main-view">
-  <template>
-    <style is="main-view-style">
-    html, body {
-      margin: 0;
-      font-family: 'Monospace';
-      background: #f1f1f1;
-      max-height: 368px;
-    }
-    app-toolbar {
-      background-color: #4285f4;
-      color: #fff;
-    }
+    <template>
+        <style is="main-view-style">
+            html, body {
+                margin: 0;
+                font-family: 'Monospace';
+                background: #f1f1f1;
+                max-height: 368px;
+            }
 
-    paper-icon-button {
-      --paper-icon-button-ink-color: white;
-    }
+            app-toolbar {
+                background-color: #4285f4;
+                color: #fff;
+            }
 
-    paper-icon-button + [main-title] {
-      margin-left: 24px;
-    }
-    paper-progress {
-      display: block;
-      width: 100%;
-      --paper-progress-active-color: rgba(255, 255, 255, 0.5);
-      --paper-progress-container-color: transparent;
-    }
-    app-header {
-      @apply --layout-fixed-top;
-      color: #fff;
-      --app-header-background-rear-layer: {
-        background-color: #ef6c00;
-      };
-    }
-    app-drawer {
-      --app-drawer-scrim-background: rgba(0, 0, 100, 0.8);
-      --app-drawer-content-container: {
-        background-color: #B0BEC5;
-      }
-    }
-    iron-pages {
-      padding-top: 64px;
-    }
+            paper-icon-button {
+                --paper-icon-button-ink-color: white;
+            }
 
-    </style>
-    <app-header reveals>
-      <app-toolbar>
-        <paper-icon-button icon="menu" onclick="drawer.toggle()"></paper-icon-button>
-        <div main-title>My app</div>
-        <paper-icon-button icon="delete"></paper-icon-button>
-        <paper-icon-button icon="search"></paper-icon-button>
-        <paper-icon-button icon="close"></paper-icon-button>
-      </app-toolbar>
-    </app-header>
-    <app-drawer id="drawer" swipe-open>
+            paper-icon-button + [main-title] {
+                margin-left: 24px;
+            }
 
-    </app-drawer>
-    <iron-pages selected="0">
-      <div>
-        <node-view loading="{{centralLoading}}"></node-view>
-      </div>
-      <div>Two</div>
-    </iron-pages>
+            paper-progress {
+                display: block;
+                width: 100%;
+                --paper-progress-active-color: rgba(255, 255, 255, 0.5);
+                --paper-progress-container-color: transparent;
+            }
 
+            app-header {
+                @apply --layout-fixed-top;
+                color: #fff;
+                --app-header-background-rear-layer: {
+                    background-color: #ef6c00;
+                };
+            }
 
-  </template>
-  <script>
-    class MainView extends Polymer.Element {
-      static get is() { return 'main-view'; }
-    }
+            app-drawer {
+                --app-drawer-scrim-background: rgba(0, 0, 100, 0.8);
+                --app-drawer-content-container: {
+                    background-color: #B0BEC5;
+                }
+            }
 
-    customElements.define(MainView.is, MainView);
+            iron-pages {
+                padding-top: 64px;
+            }
+
+        </style>
+        <app-header reveals>
+            <app-toolbar>
+                <paper-icon-button icon="menu" onclick="drawer.toggle()"></paper-icon-button>
+                <div main-title>My app</div>
+                <paper-icon-button icon="delete"></paper-icon-button>
+                <paper-icon-button icon="search"></paper-icon-button>
+                <paper-icon-button icon="close"></paper-icon-button>
+            </app-toolbar>
+        </app-header>
+        <app-drawer id="drawer" swipe-open>
+
+        </app-drawer>
+        <iron-pages selected="0">
+            <div>
+                <node-view></node-view>
+            </div>
+            <div>Two</div>
+        </iron-pages>
 
 
+    </template>
+    <script>
+        class MainView extends Polymer.Element {
+            static get is() {
+                return 'main-view';
+            }
+        }
 
+        customElements.define(MainView.is, MainView);
 
-  </script>
+    </script>
 </dom-module>
