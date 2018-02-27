@@ -12,23 +12,12 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.cluster.common;
+package org.deer.vertx.cluster.queue.task;
 
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
-import io.vertx.core.VertxOptions;
-import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager;
 
-public interface Clustered {
+public interface TaskExecutor<ResultType> {
 
-  static void startClusteredVertx(Handler<AsyncResult<Vertx>> handler) {
-    Vertx.clusteredVertx(defaultOptions(),
-        handler);
-  }
-
-  static VertxOptions defaultOptions() {
-    return new VertxOptions().setClusterManager(new HazelcastClusterManager())
-        .setWorkerPoolSize(8);
-  }
+  void perform(final Handler<AsyncResult<ResultType>> handler);
 }
