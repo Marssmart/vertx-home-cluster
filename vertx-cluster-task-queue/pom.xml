@@ -27,6 +27,10 @@
   <artifactId>vertx-cluster-task-queue</artifactId>
   <version>1.0-SNAPSHOT</version>
 
+  <properties>
+    <exec.mainClass>org.deer.vertx.cluster.queue.TaskQueueManagerVerticle</exec.mainClass>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>io.vertx</groupId>

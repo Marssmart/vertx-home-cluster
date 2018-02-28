@@ -24,7 +24,6 @@ import io.vertx.core.json.JsonObject;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
 import org.jsoup.Jsoup;
@@ -79,18 +78,14 @@ public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
               });
 
           // save parsed results
-          final int[] perFighterCounter = new int[1];
-          result.forEach(o -> {
-            final JsonObject data = JsonObject.class.cast(o);
 
-            final JsonObject fightSaveTaskParams = new JsonObject()
-                .put("per-fighter-index", perFighterCounter[0]++)
-                .put("data", data)
-                .put("original-link", originalLink);
+          final JsonObject fightSaveTaskParams = new JsonObject()
+              .put("data", result)
+              .put("original-link", originalLink);
 
-            vertx.eventBus().send("task-submit", JsonObject.mapFrom(
-                TaskDescription.create(FightSaveTask.FIGHT_SAVE_TASK, fightSaveTaskParams)));
-          });
+          vertx.eventBus().send("task-submit", JsonObject.mapFrom(
+              TaskDescription.create(FightSaveTask.FIGHT_SAVE_TASK, fightSaveTaskParams)));
+
 
         } else {
           startFuture.fail(processedLinksEvent.cause());
@@ -130,7 +125,6 @@ public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
               .put("stopage-round", visibleElements.select(childNr(7)).text())
               .put("stopage-time", visibleElements.select(childNr(8)).text());
         }).collect(Collectors.toList()));
-
     handler.handle(Future.succeededFuture(processed));
   }
 

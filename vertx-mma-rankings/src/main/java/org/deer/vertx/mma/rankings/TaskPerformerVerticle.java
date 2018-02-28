@@ -19,7 +19,6 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
-
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
 import org.deer.vertx.cluster.queue.task.factory.TaskExecutorFactory;
@@ -55,7 +54,7 @@ public class TaskPerformerVerticle extends AbstractVerticle {
             return;
           }
 
-          LOG.info("Starting {}:{}", taskDescription.getName(), taskDescription.getParams());
+          LOG.info("Starting {}", taskDescription.getName());
 
           final AbstractTaskExecutor executor = executorFactory.createExecutor(taskDescription);
           vertx.deployVerticle(executor, new DeploymentOptions().setWorker(true), deployFuture);

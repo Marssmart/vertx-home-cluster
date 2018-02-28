@@ -29,6 +29,12 @@ public interface Clustered {
 
   static VertxOptions defaultOptions() {
     return new VertxOptions().setClusterManager(new HazelcastClusterManager())
-        .setWorkerPoolSize(8);
+        .setWorkerPoolSize(2)
+        .setEventLoopPoolSize(2)
+        .setInternalBlockingPoolSize(2)
+        .setBlockedThreadCheckInterval(1000 * 60 * 60)
+        .setMaxWorkerExecuteTime(100000000L)
+        .setMaxEventLoopExecuteTime(100000000L)
+        .setWarningExceptionTime(100000000L);
   }
 }

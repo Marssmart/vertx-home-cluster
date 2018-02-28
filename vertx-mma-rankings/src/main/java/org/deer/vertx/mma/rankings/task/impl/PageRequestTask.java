@@ -61,6 +61,10 @@ public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
             final TaskDescription taskDescription = TaskDescription
                 .create(PageParseTask.PAGE_PARSE_TASK, createPageParseParams(page));
 
+            // HtmlPage is memory heavy,
+            // so cleaning up directly after getting xml content
+            page.cleanUp();
+
             vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescription));
 
             startFuture.complete();
