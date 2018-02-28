@@ -15,10 +15,16 @@
 package org.deer.vertx.cluster.queue.task;
 
 import io.vertx.core.json.JsonObject;
+import org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority;
 
 public interface TaskSubmitter {
 
   default TaskDescription createTaskDescriptor(final String taskName, final JsonObject taskParams) {
     return TaskDescription.create(taskName, taskParams);
+  }
+
+  default TaskDescription createTaskDescriptor(final String taskName, final JsonObject taskParams,
+      final TaskPriority priority) {
+    return TaskDescription.create(taskName, taskParams, priority);
   }
 }

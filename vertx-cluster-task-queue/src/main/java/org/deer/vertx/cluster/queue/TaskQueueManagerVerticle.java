@@ -14,11 +14,12 @@
 
 package org.deer.vertx.cluster.queue;
 
+import static org.deer.vertx.cluster.queue.task.TaskDescription.HIGH_TO_LOW_PRIORITY_ORDER;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.PriorityQueue;
 import org.deer.vertx.cluster.common.Clustered;
 import org.deer.vertx.cluster.queue.deploy.DeployManager;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
@@ -30,13 +31,13 @@ public class TaskQueueManagerVerticle extends AbstractVerticle implements Deploy
 
   private static final Logger LOG = LoggerFactory.getLogger(TaskQueueManagerVerticle.class);
 
-  static final String DEPLOY_MARKER = "task-queue-deployed";
-  static final String DEPLOY_LOCK = "task-queue-deploy-lock";
+  private static final String DEPLOY_MARKER = "task-queue-deployed";
+  private static final String DEPLOY_LOCK = "task-queue-deploy-lock";
 
-  private final Queue<TaskDescription> taskQueue;
+  private final PriorityQueue<TaskDescription> taskQueue;
 
   public TaskQueueManagerVerticle() {
-    this.taskQueue = new LinkedList<>();
+    this.taskQueue = new PriorityQueue<>(500, HIGH_TO_LOW_PRIORITY_ORDER);
   }
 
   public static void main(String[] args) {
@@ -55,9 +56,8 @@ public class TaskQueueManagerVerticle extends AbstractVerticle implements Deploy
   @Override
   public void start() throws Exception {
     vertx.eventBus().consumer("task-submit")
-        .handler(event -> {
-          taskQueue.add(JsonObject.class.cast(event.body()).mapTo(TaskDescription.class));
-        });
+        .handler(event -> taskQueue
+            .add(JsonObject.class.cast(event.body()).mapTo(TaskDescription.class)));
 
     vertx.eventBus().consumer("task-get")
         .handler(event -> {

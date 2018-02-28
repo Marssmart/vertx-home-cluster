@@ -14,6 +14,7 @@
 
 package org.deer.vertx.mma.rankings;
 
+import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.LOW;
 import static org.deer.vertx.mma.rankings.task.impl.PageRequestTask.PAGE_REQUEST_TASK;
 
 import io.vertx.core.AbstractVerticle;
@@ -39,7 +40,7 @@ public class TestHttpServerVerticle extends AbstractVerticle implements TaskSubm
           final String link = params.get("link");
           if (link != null) {
             final TaskDescription taskDescriptor = createTaskDescriptor(PAGE_REQUEST_TASK,
-                new JsonObject().put("link", link));
+                new JsonObject().put("link", link), LOW);
 
             vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescriptor));
             event.response().end("Tas submitted");

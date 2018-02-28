@@ -15,6 +15,8 @@
 package org.deer.vertx.mma.rankings.task.impl;
 
 import static com.google.common.base.Preconditions.checkState;
+import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.MEDIUM;
+import static org.deer.vertx.mma.rankings.task.impl.PageParseTask.PAGE_PARSE_TASK;
 
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
@@ -25,13 +27,13 @@ import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
+import org.deer.vertx.cluster.queue.task.TaskSubmitter;
 import org.deer.vertx.mma.rankings.http.HttpClient;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
-    implements HttpClient, ProcessedLinksRegistryAccessor {
+    implements HttpClient, ProcessedLinksRegistryAccessor, TaskSubmitter {
 
   private static final Logger LOG = LoggerFactory.getLogger(PageRequestTask.class);
 
@@ -58,8 +60,8 @@ public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
         pageProcessedFuture.setHandler(pageProcessedEvent -> {
           if (pageProcessedEvent.succeeded()) {
             LOG.info("Processing of link {} done", page.getBaseURL().toString());
-            final TaskDescription taskDescription = TaskDescription
-                .create(PageParseTask.PAGE_PARSE_TASK, createPageParseParams(page));
+            final TaskDescription taskDescription = createTaskDescriptor(PAGE_PARSE_TASK,
+                createPageParseParams(page), MEDIUM);
 
             // HtmlPage is memory heavy,
             // so cleaning up directly after getting xml content

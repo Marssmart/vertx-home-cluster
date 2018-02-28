@@ -14,6 +14,7 @@
 
 package org.deer.vertx.mma.rankings.task.impl;
 
+import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.HIGH;
 import static org.deer.vertx.mma.rankings.task.impl.PageRequestTask.PAGE_REQUEST_TASK;
 
 import io.vertx.core.AsyncResult;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
+import org.deer.vertx.cluster.queue.task.TaskSubmitter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -34,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
-    ProcessedLinksRegistryAccessor {
+    ProcessedLinksRegistryAccessor, TaskSubmitter {
 
   private static final Logger LOG = LoggerFactory.getLogger(PageParseTask.class);
 
@@ -70,9 +72,8 @@ public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
               .filter(link -> !keys.contains(link))
               .forEach(linkToProcess -> {
 
-                final TaskDescription taskDescription = TaskDescription
-                    .create(PAGE_REQUEST_TASK, new JsonObject()
-                        .put("link", linkToProcess));
+                final TaskDescription taskDescription = createTaskDescriptor(PAGE_REQUEST_TASK,
+                    new JsonObject().put("link", linkToProcess), HIGH);
 
                 vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescription));
               });

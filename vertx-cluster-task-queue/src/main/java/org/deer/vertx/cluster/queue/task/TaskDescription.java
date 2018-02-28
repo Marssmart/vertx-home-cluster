@@ -17,8 +17,16 @@ package org.deer.vertx.cluster.queue.task;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.vertx.core.json.JsonObject;
+import java.util.Comparator;
 
 public class TaskDescription {
+
+  public static final Comparator<TaskDescription> HIGH_TO_LOW_PRIORITY_ORDER = new Comparator<TaskDescription>() {
+    @Override
+    public int compare(TaskDescription first, TaskDescription second) {
+      return second.priority.value - first.priority.value;
+    }
+  };
 
   @JsonProperty
   private String name;
@@ -26,18 +34,25 @@ public class TaskDescription {
   @JsonProperty
   private String params;
 
+  @JsonProperty
+  private TaskPriority priority;
+
   private TaskDescription() {
-    name = null;
-    params = null;
+    this(null, null, null);
   }
 
-  private TaskDescription(String name, JsonObject params) {
+  private TaskDescription(String name, JsonObject params, TaskPriority priority) {
     this.name = name;
-    this.params = params.encode();
+    this.params = params != null ? params.encode() : null;
+    this.priority = priority;
   }
 
   public static TaskDescription create(String name, JsonObject params) {
-    return new TaskDescription(name, params);
+    return new TaskDescription(name, params, TaskPriority.LOW);
+  }
+
+  public static TaskDescription create(String name, JsonObject params, TaskPriority priority) {
+    return new TaskDescription(name, params, priority);
   }
 
   public static TaskDescription empty() {
@@ -70,6 +85,27 @@ public class TaskDescription {
     this.params = params;
   }
 
+  public TaskPriority getPriority() {
+    return priority;
+  }
+
+  public void setPriority(TaskPriority priority) {
+    this.priority = priority;
+  }
+
+  public enum TaskPriority {
+    HIGH(2),
+    MEDIUM(1),
+    LOW(0);
+
+    private final int value;
+
+    TaskPriority(int value) {
+      this.value = value;
+    }
+  }
+
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -92,5 +128,14 @@ public class TaskDescription {
     int result = name != null ? name.hashCode() : 0;
     result = 31 * result + (params != null ? params.hashCode() : 0);
     return result;
+  }
+
+  @Override
+  public String toString() {
+    return "TaskDescription{" +
+        "name='" + name + '\'' +
+        ", params='" + params + '\'' +
+        ", priority=" + priority +
+        '}';
   }
 }
