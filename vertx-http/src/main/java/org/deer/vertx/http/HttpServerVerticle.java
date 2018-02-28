@@ -48,56 +48,30 @@ public class HttpServerVerticle extends AbstractVerticle {
 
     final Router router = Router.router(vertx);
 
-    router.route().handler(CorsHandler.create("*")
-        .allowedMethod(io.vertx.core.http.HttpMethod.GET)
-        .allowedMethod(io.vertx.core.http.HttpMethod.POST)
-        .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
-        .allowedHeader("Access-Control-Request-Method")
-        .allowedHeader("Access-Control-Allow-Credentials")
-        .allowedHeader("Access-Control-Allow-Origin")
-        .allowedHeader("Access-Control-Allow-Headers")
-        .allowedHeader("Content-Type"));
+    registerCorsHandler(router);
 
-    router.route("/api/v1/os-info")
-        .handler(event -> vertx.eventBus().send("os-info", null,
-            reply -> event.response()
-                .end(JsonObject.class.cast(reply.result().body()).encodePrettily())));
+    registerOsInfoHandler(router, vertx);
 
-    router.route("/api/v1/network-device-info")
-        .handler(event -> vertx.eventBus().send("network-device-info", null,
-            jsonArrayToStringPretty(event)));
+    registerNetworkDeviceInfoHandler(router, vertx);
+    registerNetworkDeviceFlagsHandler(router, vertx);
+    registerNetworkDeviceAddressHandler(router, vertx);
 
-    router.route("/api/v1/network-device-info/:index/flags")
-        .handler(event -> vertx.eventBus().send("network-device-flags-info",
-            getIndexParam(event),
-            jsonObjectToStringPretty(event)));
+    registerClusterNodesHandler(router, vertx);
+    registerClusterNodeShutdownHandler(router, vertx);
+    registerClusterNodePingHandler(router, vertx);
 
-    router.route("/api/v1/network-device-info/:index/address")
-        .handler(event -> vertx.eventBus().send("network-device-address-info",
-            getIndexParam(event),
-            jsonObjectToStringPretty(event)));
+    httpServer.requestHandler(router::accept).listen(8444);
 
-    router.route("/api/v1/cluster/nodes")
-        .handler(event -> new NodeReporter(vertx).reportRunningNodes()
-            .setHandler(nodesResult -> {
-              if (nodesResult.succeeded()) {
-                event.response().end(new JsonArray(nodesResult.result()
-                    .stream()
-                    .map(JsonObject::mapFrom)
-                    .collect(Collectors.toList())).toBuffer());
-              } else {
-                event.fail(nodesResult.cause());
-              }
-            }));
+    nodeReporter = new NodeReporter(vertx);
+    nodeReporter.reportNodeStarted(new ClusterNode().setName("http-node"));
+  }
 
-    router.route("/api/v1/cluster/nodes/shutdown")
-        .handler(
-            event -> {
-              final String shutdownAddress = event.request().params().get("shutdown-address");
-              vertx.eventBus().send(shutdownAddress, null);
-              event.response().end("Shutdown signal send to " + shutdownAddress);
-            });
+  @Override
+  public void stop() throws Exception {
+    nodeReporter.close();
+  }
 
+  private static void registerClusterNodePingHandler(Router router, Vertx vertx) {
     router.route("/api/v1/cluster/nodes/ping")
         .handler(
             event -> {
@@ -110,15 +84,70 @@ public class HttpServerVerticle extends AbstractVerticle {
                 }
               });
             });
-
-    httpServer.requestHandler(router::accept).listen(8444);
-    nodeReporter = new NodeReporter(vertx);
-    nodeReporter.reportNodeStarted(new ClusterNode().setName("http-node"));
   }
 
-  @Override
-  public void stop() throws Exception {
-    nodeReporter.close();
+  private static void registerClusterNodeShutdownHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/cluster/nodes/shutdown")
+        .handler(
+            event -> {
+              final String shutdownAddress = event.request().params().get("shutdown-address");
+              vertx.eventBus().send(shutdownAddress, null);
+              event.response().end("Shutdown signal send to " + shutdownAddress);
+            });
+  }
+
+  private static void registerClusterNodesHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/cluster/nodes")
+        .handler(event -> new NodeReporter(vertx).reportRunningNodes()
+            .setHandler(nodesResult -> {
+              if (nodesResult.succeeded()) {
+                event.response().end(new JsonArray(nodesResult.result()
+                    .stream()
+                    .map(JsonObject::mapFrom)
+                    .collect(Collectors.toList())).toBuffer());
+              } else {
+                event.fail(nodesResult.cause());
+              }
+            }));
+  }
+
+  private static void registerNetworkDeviceAddressHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/network-device-info/:index/address")
+        .handler(event -> vertx.eventBus().send("network-device-address-info",
+            getIndexParam(event),
+            jsonObjectToStringPretty(event)));
+  }
+
+  private static void registerNetworkDeviceFlagsHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/network-device-info/:index/flags")
+        .handler(event -> vertx.eventBus().send("network-device-flags-info",
+            getIndexParam(event),
+            jsonObjectToStringPretty(event)));
+  }
+
+  private static void registerNetworkDeviceInfoHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/network-device-info")
+        .handler(event -> vertx.eventBus().send("network-device-info", null,
+            jsonArrayToStringPretty(event)));
+  }
+
+  private static void registerOsInfoHandler(Router router, Vertx vertx) {
+    router.route("/api/v1/os-info")
+        .handler(event -> vertx.eventBus().send("os-info", null,
+            reply -> event.response()
+                .end(JsonObject.class.cast(reply.result().body()).encodePrettily())));
+  }
+
+  private static void registerCorsHandler(Router router) {
+    router.route().handler(CorsHandler.create("*")
+        .allowedMethod(io.vertx.core.http.HttpMethod.GET)
+        .allowedMethod(io.vertx.core.http.HttpMethod.POST)
+        .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
+        .allowedHeader("Access-Control-Request-Method")
+        .allowedHeader("Access-Control-Allow-Credentials")
+        .allowedHeader("Access-Control-Allow-Origin")
+        .allowedHeader("Access-Control-Allow-Headers")
+        .allowedHeader("Content-Type"));
   }
 
   private static Handler<AsyncResult<Message<Object>>> jsonArrayToStringPretty(
