@@ -12,11 +12,9 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.impl;
+package org.deer.vertx.mma.rankings.task.base;
 
 import static com.google.common.base.Preconditions.checkState;
-import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.MEDIUM;
-import static org.deer.vertx.mma.rankings.task.impl.PageParseTask.PAGE_PARSE_TASK;
 
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
@@ -26,55 +24,61 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
-import org.deer.vertx.cluster.queue.task.TaskDescription;
+import org.deer.vertx.cluster.queue.task.QueuedTask;
+import org.deer.vertx.cluster.queue.task.TaskStatsUpdater;
 import org.deer.vertx.cluster.queue.task.TaskSubmitter;
 import org.deer.vertx.mma.rankings.http.HttpClient;
+import org.deer.vertx.mma.rankings.task.impl.ProcessedLinksRegistryAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
-    implements HttpClient, ProcessedLinksRegistryAccessor, TaskSubmitter {
+/**
+ * Task that request fighter profile from www.mixedmartialarts.com and submits parsing task for it
+ */
+public abstract class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
+    implements HttpClient, ProcessedLinksRegistryAccessor, TaskSubmitter, TaskStatsUpdater {
 
   private static final Logger LOG = LoggerFactory.getLogger(PageRequestTask.class);
 
-  public static final String PAGE_REQUEST_TASK = "page-request-task";
+  protected final QueuedTask task;
 
-  private final String link;
-
-  public PageRequestTask(final JsonObject params) {
-    super(PAGE_REQUEST_TASK);
-    checkState(params.containsKey("link"), "Link not specified");
-    this.link = params.getString("link");
+  public PageRequestTask(final QueuedTask task, final String taskType) {
+    super(taskType);
+    checkState(task.getDescription().parseParams().containsKey("link"), "Link not specified");
+    this.task = task;
   }
 
   @Override
   public void start(Future<Void> startFuture) throws Exception {
+    reportTaskStarted(vertx, task);
+    final String deploymentId = vertx.getOrCreateContext().deploymentID();
     this.perform(event -> {
       if (event.succeeded()) {
         final HtmlPage page = event.result();
 
-        final Future<Void> pageProcessedFuture = markLinkProcessed(vertx,
+        final Future<Void> pageProcessedFuture = markFighterNameProcessed(vertx,
             page.getBaseURL().toString(),
             startFuture);
 
         pageProcessedFuture.setHandler(pageProcessedEvent -> {
           if (pageProcessedEvent.succeeded()) {
             LOG.info("Processing of link {} done", page.getBaseURL().toString());
-            final TaskDescription taskDescription = createTaskDescriptor(PAGE_PARSE_TASK,
-                createPageParseParams(page), MEDIUM);
+            onPageRequestFinished(page);
 
             // HtmlPage is memory heavy,
             // so cleaning up directly after getting xml content
             page.cleanUp();
 
-            vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescription));
-
             startFuture.complete();
+            reportTaskFinished(vertx, task);
+            vertx.undeploy(deploymentId);
           } else {
+            reportTaskFailed(vertx, task, pageProcessedEvent.cause().getMessage());
             startFuture.fail(pageProcessedEvent.cause());
           }
         });
       } else {
+        reportTaskFailed(vertx, task, event.cause().getMessage());
         startFuture.fail(event.cause());
       }
     });
@@ -84,7 +88,7 @@ public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
   public void perform(Handler<AsyncResult<HtmlPage>> handler) {
     HtmlPage page = null;
     try (WebClient client = createClient()) {
-      page = client.getPage(link);
+      page = client.getPage(task.getDescription().parseParams().getString("link"));
     } catch (IOException e) {
       handler.handle(Future.failedFuture(e));
     }
@@ -92,9 +96,11 @@ public class PageRequestTask extends AbstractTaskExecutor<HtmlPage>
     handler.handle(Future.succeededFuture(page));
   }
 
-  private static JsonObject createPageParseParams(HtmlPage page) {
+  protected static JsonObject createPageParseParams(HtmlPage page) {
     return new JsonObject()
         .put("original-link", page.getBaseURL().toString())
         .put("page-content", page.asXml());
   }
+
+  public abstract void onPageRequestFinished(HtmlPage page);
 }

@@ -12,18 +12,12 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.impl;
+package org.deer.vertx.cluster.queue.task;
 
-import io.vertx.core.Future;
-import io.vertx.core.Vertx;
-import io.vertx.ext.mongo.MongoClient;
-
-public interface MongoClientUser {
-
-  default Future<MongoClient> connectToMongo(final Vertx vertx) {
-    final Future<MongoClient> clientFuture = Future.future();
-    vertx.fileSystem().readFile("app.config", result -> clientFuture
-        .complete(MongoClient.createShared(vertx, result.result().toJsonObject())));
-    return clientFuture;
-  }
+public enum QueuedTaskState {
+  SUBMITED,
+  RETRIEVED,
+  STARTED,
+  FAILED,
+  FINISHED;
 }

@@ -24,7 +24,7 @@ public interface ProcessedLinksRegistryAccessor {
 
   String PROCESSED_LINKS_REGISTRY = "processed-mma-profile-links";
 
-  default Future<Void> markLinkProcessed(final Vertx vertx,
+  default Future<Void> markFighterNameProcessed(final Vertx vertx,
       final String link,
       final Future<Void> failureHandler) {
     final Future<AsyncMap<Object, Object>> processedLinksRegistry = Future.future();
@@ -33,7 +33,7 @@ public interface ProcessedLinksRegistryAccessor {
     final Future<Void> pageProcessedFuture = Future.future();
     processedLinksRegistry.setHandler(registryEvent -> {
       if (registryEvent.succeeded()) {
-        registryEvent.result().put(link, true, pageProcessedFuture);
+        registryEvent.result().put(nameFromLink(link), true, pageProcessedFuture);
       } else {
         failureHandler.fail(registryEvent.cause());
       }
@@ -42,7 +42,7 @@ public interface ProcessedLinksRegistryAccessor {
     return pageProcessedFuture;
   }
 
-  default Future<Set<String>> processedLinks(final Vertx vertx,
+  default Future<Set<String>> processedFighterNames(final Vertx vertx,
       final Future<Void> failureHandler) {
     final Future<AsyncMap<Object, Object>> processedLinksRegistry = Future.future();
     vertx.sharedData().getClusterWideMap(PROCESSED_LINKS_REGISTRY, processedLinksRegistry);
@@ -59,5 +59,11 @@ public interface ProcessedLinksRegistryAccessor {
     return keysFuture.map(objects -> objects.stream()
         .map(String.class::cast)
         .collect(Collectors.toSet()));
+  }
+
+  default String nameFromLink(String link) {
+    final String base = "/fighter/";
+    return (link.substring(link.indexOf(base) + base.length(),
+        link.indexOf(":", link.indexOf(base)))).replace("-", " ").trim();
   }
 }

@@ -15,27 +15,32 @@
 package org.deer.vertx.mma.rankings.task.factory.impl;
 
 
+import io.vertx.ext.mongo.MongoClient;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
+import org.deer.vertx.cluster.queue.task.QueuedTask;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
 import org.deer.vertx.cluster.queue.task.factory.TaskExecutorFactory;
-import org.deer.vertx.mma.rankings.task.impl.FightSaveTask;
-import org.deer.vertx.mma.rankings.task.impl.PageParseTask;
-import org.deer.vertx.mma.rankings.task.impl.PageRequestTask;
+import org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.FighterProfileLinkSaveTask;
+import org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.PageRequestWithLinkParseAndSaveTask;
 
 public class TaskExecutorFactoryImpl implements TaskExecutorFactory {
 
-  @Override
-  public AbstractTaskExecutor<?> createExecutor(final TaskDescription taskDescription) {
+  private final MongoClient mongoClient;
 
+  public TaskExecutorFactoryImpl(MongoClient mongoClient) {
+    this.mongoClient = mongoClient;
+  }
+
+  @Override
+  public AbstractTaskExecutor<?> createExecutor(final QueuedTask queuedTask) {
+
+    final TaskDescription taskDescription = queuedTask.getDescription();
     switch (taskDescription.getName()) {
-      case PageRequestTask.PAGE_REQUEST_TASK: {
-        return new PageRequestTask(taskDescription.parseParams());
+      case FighterProfileLinkSaveTask.FIGHTER_PROFILE_LINK_AND_SAVE_TASK: {
+        return new FighterProfileLinkSaveTask(queuedTask, mongoClient);
       }
-      case PageParseTask.PAGE_PARSE_TASK: {
-        return new PageParseTask(taskDescription.parseParams());
-      }
-      case FightSaveTask.FIGHT_SAVE_TASK: {
-        return new FightSaveTask(taskDescription.parseParams());
+      case PageRequestWithLinkParseAndSaveTask.PAGE_REQUEST_WITH_LINK_PARSE_AND_SAVE_TASK: {
+        return new PageRequestWithLinkParseAndSaveTask(queuedTask);
       }
       default:
         throw new IllegalStateException("No executor for type " + taskDescription.getName());

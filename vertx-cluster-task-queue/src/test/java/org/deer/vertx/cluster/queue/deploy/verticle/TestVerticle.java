@@ -12,13 +12,19 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.cluster.queue.task.factory;
+package org.deer.vertx.cluster.queue.deploy.verticle;
 
-import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
-import org.deer.vertx.cluster.queue.task.QueuedTask;
-import org.deer.vertx.cluster.queue.task.TaskDescription;
+import io.vertx.core.AbstractVerticle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public interface TaskExecutorFactory {
 
-  AbstractTaskExecutor<?> createExecutor(final QueuedTask queuedTask);
+public class TestVerticle extends AbstractVerticle {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestVerticle.class);
+
+  @Override
+  public void start() throws Exception {
+    LOG.info("Started");
+  }
 }

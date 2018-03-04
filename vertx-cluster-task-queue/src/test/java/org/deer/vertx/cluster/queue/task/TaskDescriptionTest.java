@@ -14,18 +14,9 @@
 
 package org.deer.vertx.cluster.queue.task;
 
-import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.HIGH;
-import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.LOW;
-import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.MEDIUM;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.vertx.core.json.JsonObject;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class TaskDescriptionTest {
@@ -40,19 +31,6 @@ class TaskDescriptionTest {
 
     final JsonObject parsed = new JsonObject(stringData);
     final TaskDescription deserialized = parsed.mapTo(TaskDescription.class);
-    Assertions.assertEquals(taskDescription, deserialized);
-  }
-
-  @Test
-  public void testOrderHightToLow() {
-    final TaskDescription low = TaskDescription.create("low", null, LOW);
-    final TaskDescription medium = TaskDescription.create("medium", null, MEDIUM);
-    final TaskDescription high = TaskDescription.create("high", null, HIGH);
-
-    final List<TaskDescription> ordered = Stream.of(low, high, medium)
-        .sorted(TaskDescription.HIGH_TO_LOW_PRIORITY_ORDER)
-        .collect(Collectors.toList());
-
-    assertThat(ordered, contains(is(high), is(medium), is(low)));
+    assertEquals(taskDescription, deserialized);
   }
 }

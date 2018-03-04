@@ -5,8 +5,3 @@ ECHO Starting workers
 start "Worker 1" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
 start "Worker 2" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
 start "Worker 3" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
-start "Worker 4" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
-start "Worker 5" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
-start "Worker 6" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
-start "Worker 7" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar
-start "Worker 8" java -jar ..\vertx-mma-rankings\target\vertx-mma-rankings-1.0-SNAPSHOT-fat.jar

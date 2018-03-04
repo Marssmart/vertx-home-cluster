@@ -19,55 +19,64 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import org.deer.vertx.cluster.common.mongo.MongoClientUser;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
-import org.deer.vertx.cluster.queue.task.TaskDescription;
+import org.deer.vertx.cluster.queue.task.QueuedTask;
 import org.deer.vertx.cluster.queue.task.factory.TaskExecutorFactory;
 import org.deer.vertx.mma.rankings.task.factory.impl.TaskExecutorFactoryImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TaskPerformerVerticle extends AbstractVerticle {
+public class TaskPerformerVerticle extends AbstractVerticle implements MongoClientUser {
 
   private static final Logger LOG = LoggerFactory.getLogger(TaskPerformerVerticle.class);
 
-  private final TaskExecutorFactory executorFactory;
-
-  public TaskPerformerVerticle() {
-    executorFactory = new TaskExecutorFactoryImpl();
-  }
+  private TaskExecutorFactory executorFactory;
 
   @Override
-  public void start() throws Exception {
-    vertx.setPeriodic(3000, event -> {
-      final Future<Message<Object>> taskRetrievalFuture = Future.future();
-      vertx.eventBus().send("task-get", null, taskRetrievalFuture);
-
-      final Future<String> deployFuture = Future.future();
-      taskRetrievalFuture.setHandler(taskRetrievalEvent -> {
-        if (taskRetrievalEvent.succeeded()) {
-          final TaskDescription taskDescription = JsonObject
-              .mapFrom(taskRetrievalEvent.result().body())
-              .mapTo(TaskDescription.class);
-
-          if (taskDescription.isEmpty()) {
-            LOG.trace("No tasks in queue");
-            return;
+  public void start(Future<Void> startFuture) throws Exception {
+    connectToMongo(vertx)
+        .setHandler(clientResult -> {
+          if (clientResult.failed()) {
+            startFuture.fail(clientResult.cause());
           }
 
-          LOG.info("Starting {}", taskDescription.getName());
+          executorFactory = new TaskExecutorFactoryImpl(clientResult.result());
 
-          final AbstractTaskExecutor executor = executorFactory.createExecutor(taskDescription);
-          vertx.deployVerticle(executor, new DeploymentOptions().setWorker(true), deployFuture);
-        } else {
-          LOG.trace("Cannot retrieve task", taskRetrievalEvent.cause());
-        }
-      });
+          vertx.setPeriodic(15000, event -> {
+            final Future<Message<Object>> taskRetrievalFuture = Future.future();
+            vertx.eventBus().send("task-get", null, taskRetrievalFuture);
 
-      deployFuture.setHandler(deployEvent -> {
-        if (deployEvent.failed()) {
-          LOG.error("Task failed", deployEvent.cause());
-        }
-      });
-    });
+            final Future<String> deployFuture = Future.future();
+            taskRetrievalFuture.setHandler(taskRetrievalEvent -> {
+              if (taskRetrievalEvent.succeeded()) {
+                if (taskRetrievalEvent.result().body() == null) {
+                  LOG.trace("No tasks in queue");
+                  return;
+                }
+
+                final QueuedTask queuedTask = JsonObject
+                    .mapFrom(taskRetrievalEvent.result().body())
+                    .mapTo(QueuedTask.class);
+
+                LOG.info("Starting {}", queuedTask.getDescription().getName());
+
+                final AbstractTaskExecutor executor = executorFactory.createExecutor(queuedTask);
+                vertx.deployVerticle(executor, new DeploymentOptions().setWorker(true),
+                    deployFuture);
+              } else {
+                LOG.trace("Cannot retrieve task", taskRetrievalEvent.cause());
+              }
+            });
+
+            deployFuture.setHandler(deployEvent -> {
+              if (deployEvent.failed()) {
+                LOG.error("Task failed", deployEvent.cause());
+              }
+            });
+
+          });
+          startFuture.complete();
+        });
   }
 }

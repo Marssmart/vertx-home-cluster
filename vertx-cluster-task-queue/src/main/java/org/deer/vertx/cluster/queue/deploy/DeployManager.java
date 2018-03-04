@@ -20,8 +20,12 @@ import io.vertx.core.shareddata.AsyncMap;
 import io.vertx.core.shareddata.Lock;
 import java.util.Set;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface DeployManager {
+
+  // logger for default methods
+  Logger LOG = LoggerFactory.getLogger(DeployManager.class);
 
   DeployManager INSTANCE = new DeployManager() {
   };
@@ -30,80 +34,115 @@ public interface DeployManager {
   /**
    * Calls deploy function
    */
-  default Future<String> deployClusterSingleton(final Vertx vertx,
+  default Future<DeploymentState> deployClusterSingleton(final Vertx vertx,
       final String deployMarkerName,
       final String deployLock,
-      final String verticleName,
-      final Logger logger) {
+      final String verticleName) {
 
-    final Future<String> deployFuture = Future.future();
+    final Future<DeploymentState> deployFuture = Future.future();
 
-    // retrieve deployment marker map
-    final Future<AsyncMap<Object, Object>> mapFuture = Future.future();
+    LOG.info("Deploying {} as cluster singleton", verticleName);
 
-    logger.info("Deploying {} as cluster singleton", verticleName);
-    logger.info("Retrieving deploy registry {}", DEPLOY_REGISTRY);
-    vertx.sharedData().getClusterWideMap(DEPLOY_REGISTRY, mapFuture);
+    getDeployLock(vertx, deployLock).setHandler(lockAsyncResult -> {
+      if (lockAsyncResult.succeeded()) {
 
-    // get keys
-    final Future<Set<Object>> keysFuture = Future.future();
-    mapFuture.setHandler(mapEvent -> {
-      if (mapEvent.succeeded()) {
-        logger.info("Retrieving keys for {}", DEPLOY_REGISTRY);
-        mapEvent.result().keys(keysFuture);
-      } else {
-        deployFuture.fail(mapEvent.cause());
-      }
-    });
+        getDeployRegistry(vertx).setHandler(mapResult -> {
+          if (mapResult.succeeded()) {
 
-    //check if not already marked as deployed, if not, try to retrieve deploy lock
-    final Future<Lock> lockFuture = Future.future();
-    keysFuture.setHandler(keysEvent -> {
-      if (keysEvent.succeeded()) {
-        if (!keysEvent.result().contains(deployMarkerName)) {
-          logger.info("Deploy marker not found, retrieving deploy lock {}", deployLock);
-          vertx.sharedData().getLock(deployLock, lockFuture);
-        } else {
-          logger.info("Deploy marker found, skipping deployment of {}", deployLock, verticleName);
-          deployFuture.complete();
-        }
-      } else {
-        deployFuture.fail(keysEvent.cause());
-      }
-    });
+            getDeployMarkers(mapResult.result()).setHandler(deployMarkersResult -> {
+              if (deployMarkersResult.succeeded()) {
 
-    // if able to retrieve lock, deploy verticle
-    lockFuture.setHandler(lockEvent -> {
-      if (lockEvent.succeeded()) {
-        logger.info("Deploy lock {} retrieved, deploying verticle {}", deployLock, verticleName);
-        vertx.deployVerticle(verticleName, deployFuture);
-      } else {
-        logger.info("Deploy lock already occupied, skipping deployment");
-        deployFuture.complete("Deployment-skipped");
-      }
-    });
+                if (!deployMarkersResult.result().contains(deployMarkerName)) {
+                  LOG.info("Deploy marker not found, retrieving deploy lock {}",
+                      deployLock);
 
-    deployFuture.setHandler(deployEvent -> {
-      if (deployEvent.succeeded()) {
-        logger.info("Verticle {} deployed, marking as deployed", verticleName);
-        //if deployment was successful, mark and release lock(even if mark failed)
-        mapFuture.result().put(deployMarkerName, true, markEvent -> {
-          logger.info("Releasing deploy lock {}", deployLock);
-          lockFuture.result().release();
-          if (mapFuture.succeeded()) {
-            //FIXME - future is already completed here for some reason
-            deployFuture.complete();
+                  startVerticle(vertx, verticleName)
+                      .setHandler(stringAsyncResult -> {
+                        if (stringAsyncResult.succeeded()) {
+                          LOG.info("Verticle {} succesfully deployed", verticleName);
+
+                          markVerticleDeployed(mapResult.result(), deployMarkerName)
+                              .setHandler(markResult -> {
+                                if (mapResult.succeeded()) {
+                                  LOG.info("Verticle {} successfully marked as deployed",
+                                      verticleName);
+                                } else {
+                                  LOG.error("Error marking verticle {} as deployed", verticleName);
+                                }
+                                lockAsyncResult.result().release();
+                              });
+                          deployFuture.complete(DeploymentState.DEPLOYED);
+                        } else {
+                          LOG.error("Error while deploying verticle {}", verticleName,
+                              stringAsyncResult.cause());
+                          deployFuture.fail(stringAsyncResult.cause());
+                          lockAsyncResult.result().release();
+                        }
+                      });
+
+                } else {
+                  LOG.info("Deploy marker found, skipping deployment of {}", deployLock,
+                      verticleName);
+                  deployFuture.complete(DeploymentState.SKIPPED);
+                }
+              } else {
+                deployFuture.fail(deployMarkersResult.cause());
+              }
+            });
           } else {
-            deployFuture.fail(markEvent.cause());
+            deployFuture.fail(mapResult.cause());
           }
         });
       } else {
-        // if deploy failed, just release lock
-        lockFuture.result().release();
-        deployFuture.fail(deployEvent.cause());
+        deployFuture.complete(DeploymentState.LOCKED);
       }
     });
 
     return deployFuture;
+  }
+
+  static Future<Set<Object>> getDeployMarkers(AsyncMap<Object, Object> deployRegistry) {
+    LOG.info("Retrieving keys for {}", DEPLOY_REGISTRY);
+    // get keys
+    final Future<Set<Object>> keysFuture = Future.future();
+    deployRegistry.keys(keysFuture);
+    return keysFuture;
+  }
+
+  static Future<String> startVerticle(Vertx vertx, String verticleName) {
+    LOG.info("Starting verticle {}", verticleName);
+    final Future<String> startFuture = Future.future();
+    vertx.deployVerticle(verticleName, startFuture);
+    return startFuture;
+  }
+
+  static Future<Lock> getDeployLock(Vertx vertx, String deployLock) {
+    LOG.info("Retrieving deploy lock {}", deployLock);
+    final Future<Lock> lockFuture = Future.future();
+    vertx.sharedData().getLockWithTimeout(deployLock, 2000, lockFuture);
+    return lockFuture;
+  }
+
+  static Future<AsyncMap<Object, Object>> getDeployRegistry(Vertx vertx) {
+    LOG.info("Retrieving deploy registry {}", DEPLOY_REGISTRY);
+    final Future<AsyncMap<Object, Object>> mapFuture = Future.future();
+    vertx.sharedData().getClusterWideMap(DEPLOY_REGISTRY, mapFuture);
+    return mapFuture;
+  }
+
+  static Future<Void> markVerticleDeployed(AsyncMap<Object, Object> deployRegistry,
+      String deployMarker) {
+    final Future<Void> markedFuture = Future.future();
+    deployRegistry.put(deployMarker, true, markedFuture);
+    return markedFuture;
+  }
+
+  enum DeploymentState {
+    // if deployment was successful
+    DEPLOYED,
+    // if unable to get deployment lock
+    LOCKED,
+    // if already marked as deployed
+    SKIPPED
   }
 }

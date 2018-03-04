@@ -12,22 +12,21 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.impl;
+package org.deer.vertx.mma.rankings.task.base;
 
-import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.HIGH;
-import static org.deer.vertx.mma.rankings.task.impl.PageRequestTask.PAGE_REQUEST_TASK;
+import static com.hazelcast.util.Preconditions.checkState;
 
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
-import org.deer.vertx.cluster.queue.task.TaskDescription;
+import org.deer.vertx.cluster.queue.task.QueuedTask;
+import org.deer.vertx.cluster.queue.task.TaskStatsUpdater;
 import org.deer.vertx.cluster.queue.task.TaskSubmitter;
+import org.deer.vertx.mma.rankings.task.impl.ProcessedLinksRegistryAccessor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -35,70 +34,47 @@ import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
-    ProcessedLinksRegistryAccessor, TaskSubmitter {
+/**
+ * Parse fighter profile from www.mixedmartialarts.com
+ */
+public abstract class FighterProfileParseTask extends AbstractTaskExecutor<JsonArray> implements
+    ProcessedLinksRegistryAccessor, TaskSubmitter, TaskStatsUpdater {
 
-  private static final Logger LOG = LoggerFactory.getLogger(PageParseTask.class);
+  private static final Logger LOG = LoggerFactory.getLogger(FighterProfileParseTask.class);
 
-  public static final String PAGE_PARSE_TASK = "page-parse-task";
   private static final String TO_BE_DETERMINED = "TBD";
 
-  private final String content;
-  private final String originalLink;
+  protected final QueuedTask task;
 
-  public PageParseTask(final JsonObject params) {
-    super(PAGE_PARSE_TASK);
-    content = params.getString("page-content");
-    originalLink = params.getString("original-link");
+  public FighterProfileParseTask(final QueuedTask task, final String type) {
+    super(type);
+    checkState(task.getDescription().parseParams().containsKey("page-content"),
+        "Page content not specified");
+    checkState(task.getDescription().parseParams().containsKey("original-link"),
+        "Original link not specified");
+    this.task = task;
   }
 
   @Override
   public void start(Future<Void> startFuture) throws Exception {
+    reportTaskStarted(vertx, task);
+    final String deploymentId = vertx.getOrCreateContext().deploymentID();
     this.perform(taskDoneEvent -> {
-      final JsonArray result = taskDoneEvent.result();
-
-      final Future<Set<String>> processedLinksFuture = processedLinks(vertx, startFuture);
-
-      processedLinksFuture.setHandler(processedLinksEvent -> {
-        if (processedLinksEvent.succeeded()) {
-
-          final Set<String> keys = processedLinksEvent.result();
-
-          final List<JsonObject> list = result.getList();
-          // filters out already processed links and create requests for rest
-          list.stream()
-              .map(JsonObject.class::cast)
-              .map(entries -> entries.getString("oponent-link"))
-              .filter(link -> !keys.contains(link))
-              .forEach(linkToProcess -> {
-
-                final TaskDescription taskDescription = createTaskDescriptor(PAGE_REQUEST_TASK,
-                    new JsonObject().put("link", linkToProcess), HIGH);
-
-                vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescription));
-              });
-
-          // save parsed results
-
-          final JsonObject fightSaveTaskParams = new JsonObject()
-              .put("data", result)
-              .put("original-link", originalLink);
-
-          vertx.eventBus().send("task-submit", JsonObject.mapFrom(
-              TaskDescription.create(FightSaveTask.FIGHT_SAVE_TASK, fightSaveTaskParams)));
-
-
-        } else {
-          startFuture.fail(processedLinksEvent.cause());
-        }
-      });
+      if (taskDoneEvent.failed()) {
+        reportTaskFailed(vertx, task, taskDoneEvent.cause().getMessage());
+        return;
+      }
+      onPageParsed(taskDoneEvent.result(), startFuture);
+      reportTaskFinished(vertx, task);
+      vertx.undeploy(deploymentId);
     });
   }
 
   @Override
   public void perform(Handler<AsyncResult<JsonArray>> handler) {
-    LOG.info("Parsing {}", originalLink);
-    final Document document = Jsoup.parse(content);
+    LOG.info("Parsing {}", task.getDescription().parseParams().getString("original-link"));
+    final Document document = Jsoup
+        .parse(task.getDescription().parseParams().getString("page-content"));
 
     final Elements profesionalRecordTable = document.select(profesionalMmaRecord())
         .select(fighterRecord())
@@ -107,7 +83,7 @@ public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
         .select(tableRow());
 
     final JsonArray processed = new JsonArray(profesionalRecordTable.stream()
-        .filter(PageParseTask::noFutureFights)
+        .filter(FighterProfileParseTask::noFutureFights)
         .map(element -> {
           final Elements visibleElements = element.select(visibleFightRecordElements());
           final Elements oponentElement = visibleElements.select(childNr(4));
@@ -128,6 +104,9 @@ public class PageParseTask extends AbstractTaskExecutor<JsonArray> implements
         }).collect(Collectors.toList()));
     handler.handle(Future.succeededFuture(processed));
   }
+
+  public abstract void onPageParsed(final JsonArray fighterProfiles,
+      final Future<Void> resultHandler);
 
   private static String profesionalMmaRecord() {
     return ".prof-mma-record";

@@ -14,41 +14,32 @@
 
 package org.deer.vertx.cluster.queue.task;
 
+import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.LOW;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonRootName;
 import io.vertx.core.json.JsonObject;
-import java.util.Comparator;
 
+@JsonRootName("task-description")
 public class TaskDescription {
 
-  public static final Comparator<TaskDescription> HIGH_TO_LOW_PRIORITY_ORDER = new Comparator<TaskDescription>() {
-    @Override
-    public int compare(TaskDescription first, TaskDescription second) {
-      return second.priority.value - first.priority.value;
-    }
-  };
-
-  @JsonProperty
   private String name;
-
-  @JsonProperty
   private String params;
-
-  @JsonProperty
   private TaskPriority priority;
 
-  private TaskDescription() {
-    this(null, null, null);
-  }
-
-  private TaskDescription(String name, JsonObject params, TaskPriority priority) {
+  @JsonCreator
+  private TaskDescription(@JsonProperty("name") final String name,
+      @JsonProperty("params") final JsonObject params,
+      @JsonProperty("priority") final TaskPriority priority) {
     this.name = name;
     this.params = params != null ? params.encode() : null;
     this.priority = priority;
   }
 
   public static TaskDescription create(String name, JsonObject params) {
-    return new TaskDescription(name, params, TaskPriority.LOW);
+    return create(name, params, LOW);
   }
 
   public static TaskDescription create(String name, JsonObject params, TaskPriority priority) {
@@ -56,7 +47,7 @@ public class TaskDescription {
   }
 
   public static TaskDescription empty() {
-    return new TaskDescription();
+    return create(null, null, null);
   }
 
   @JsonIgnore
@@ -73,24 +64,12 @@ public class TaskDescription {
     return name;
   }
 
-  public void setName(String name) {
-    this.name = name;
-  }
-
   public String getParams() {
     return params;
   }
 
-  public void setParams(String params) {
-    this.params = params;
-  }
-
   public TaskPriority getPriority() {
     return priority;
-  }
-
-  public void setPriority(TaskPriority priority) {
-    this.priority = priority;
   }
 
   public enum TaskPriority {
@@ -100,11 +79,14 @@ public class TaskDescription {
 
     private final int value;
 
+    public int getValue() {
+      return value;
+    }
+
     TaskPriority(int value) {
       this.value = value;
     }
   }
-
 
   @Override
   public boolean equals(Object o) {

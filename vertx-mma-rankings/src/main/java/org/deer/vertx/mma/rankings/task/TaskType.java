@@ -12,13 +12,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.cluster.queue.task.factory;
+package org.deer.vertx.mma.rankings.task;
 
-import org.deer.vertx.cluster.queue.task.AbstractTaskExecutor;
-import org.deer.vertx.cluster.queue.task.QueuedTask;
-import org.deer.vertx.cluster.queue.task.TaskDescription;
-
-public interface TaskExecutorFactory {
-
-  AbstractTaskExecutor<?> createExecutor(final QueuedTask queuedTask);
+public class TaskType {
 }
