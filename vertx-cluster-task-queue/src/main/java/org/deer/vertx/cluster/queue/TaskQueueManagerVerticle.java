@@ -18,7 +18,9 @@ import static org.deer.vertx.cluster.queue.task.QueuedTask.HIGH_TO_LOW_PRIORITY_
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
 import java.util.PriorityQueue;
@@ -71,57 +73,68 @@ public class TaskQueueManagerVerticle extends AbstractVerticle implements Deploy
 
       final MongoClient mongoClient = mongoClientFuture.result();
 
-      vertx.eventBus().consumer("task-submit")
-          .handler(event -> {
-            final TaskDescription taskDescription = JsonObject.class.cast(event.body())
-                .mapTo(TaskDescription.class);
-            final QueuedTask queuedTask = new QueuedTask(taskIdCounter.getAndIncrement(),
-                taskDescription);
-            taskQueue.add(queuedTask);
-
-            //updates statistics async
-            updateStatsAsync(mongoClient, QueuedTaskState.SUBMITED, queuedTask);
-          });
-
-      vertx.eventBus().consumer("task-get")
-          .handler(event -> {
-            if (taskQueue.isEmpty()) {
-              event.reply(null);
-            } else {
-              final QueuedTask queuedTask = taskQueue.poll();
-              event.reply(JsonObject.mapFrom(queuedTask));
-              //updates statistics async
-              updateStatsAsync(mongoClient, QueuedTaskState.RETRIEVED, queuedTask);
-            }
-          });
-
-      vertx.eventBus().consumer("task-started")
-          .handler(event -> {
-            final QueuedTask queuedTask = JsonObject.class.cast(event.body())
-                .mapTo(QueuedTask.class);
-            //updates statistics async
-            updateStatsAsync(mongoClient, QueuedTaskState.STARTED, queuedTask);
-          });
-
-      vertx.eventBus().consumer("task-failed")
-          .handler(event -> {
-            final FailedTask failedTask = JsonObject.class.cast(event.body())
-                .mapTo(FailedTask.class);
-            //updates statistics async
-            updateStatsAsync(mongoClient, QueuedTaskState.FAILED, failedTask);
-          });
-
-      vertx.eventBus().consumer("task-finished")
-          .handler(event -> {
-            final QueuedTask queuedTask = JsonObject.class.cast(event.body())
-                .mapTo(QueuedTask.class);
-            //updates statistics async
-            updateStatsAsync(mongoClient, QueuedTaskState.FINISHED, queuedTask);
-          });
+      vertx.eventBus().consumer("task-submit").handler(taskSubmitHandler(mongoClient));
+      vertx.eventBus().consumer("task-get").handler(taskGetHandler(mongoClient));
+      vertx.eventBus().consumer("task-started").handler(taskStartedHandler(mongoClient));
+      vertx.eventBus().consumer("task-failed").handler(taskFailedHandler(mongoClient));
+      vertx.eventBus().consumer("task-finished").handler(taskFinishedHandler(mongoClient));
     });
   }
 
-  private void updateStatsAsync(final MongoClient client,
+  private static Handler<Message<Object>> taskFinishedHandler(MongoClient mongoClient) {
+    return event -> {
+      final QueuedTask queuedTask = JsonObject.class.cast(event.body())
+          .mapTo(QueuedTask.class);
+      //updates statistics async
+      updateStatsAsync(mongoClient, QueuedTaskState.FINISHED, queuedTask);
+    };
+  }
+
+  private static Handler<Message<Object>> taskFailedHandler(MongoClient mongoClient) {
+    return event -> {
+      final FailedTask failedTask = JsonObject.class.cast(event.body())
+          .mapTo(FailedTask.class);
+      //updates statistics async
+      updateStatsAsync(mongoClient, QueuedTaskState.FAILED, failedTask);
+    };
+  }
+
+  private static Handler<Message<Object>> taskStartedHandler(MongoClient mongoClient) {
+    return event -> {
+      final QueuedTask queuedTask = JsonObject.class.cast(event.body())
+          .mapTo(QueuedTask.class);
+      //updates statistics async
+      updateStatsAsync(mongoClient, QueuedTaskState.STARTED, queuedTask);
+    };
+  }
+
+  private Handler<Message<Object>> taskGetHandler(MongoClient mongoClient) {
+    return event -> {
+      if (taskQueue.isEmpty()) {
+        event.reply(null);
+      } else {
+        final QueuedTask queuedTask = taskQueue.poll();
+        event.reply(JsonObject.mapFrom(queuedTask));
+        //updates statistics async
+        updateStatsAsync(mongoClient, QueuedTaskState.RETRIEVED, queuedTask);
+      }
+    };
+  }
+
+  private Handler<Message<Object>> taskSubmitHandler(MongoClient mongoClient) {
+    return event -> {
+      final TaskDescription taskDescription = JsonObject.class.cast(event.body())
+          .mapTo(TaskDescription.class);
+      final QueuedTask queuedTask = new QueuedTask(taskIdCounter.getAndIncrement(),
+          taskDescription);
+      taskQueue.add(queuedTask);
+
+      //updates statistics async
+      updateStatsAsync(mongoClient, QueuedTaskState.SUBMITED, queuedTask);
+    };
+  }
+
+  private static void updateStatsAsync(final MongoClient client,
       final QueuedTaskState state,
       final QueuedTask task) {
     client.save("task-stats", createTaskStats(state, task), saveEvent -> {
@@ -133,7 +146,7 @@ public class TaskQueueManagerVerticle extends AbstractVerticle implements Deploy
     });
   }
 
-  private void updateStatsAsync(final MongoClient client,
+  private static void updateStatsAsync(final MongoClient client,
       final QueuedTaskState state,
       final FailedTask failedTask) {
     client.save("task-stats", createTaskStats(state, failedTask), saveEvent -> {
