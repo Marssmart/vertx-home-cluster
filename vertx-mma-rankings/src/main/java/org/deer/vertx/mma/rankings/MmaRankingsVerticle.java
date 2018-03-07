@@ -19,7 +19,7 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import org.deer.vertx.cluster.common.Clustered;
 import org.deer.vertx.cluster.queue.deploy.DeployManager;
-import org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.FighterProfileResultProcessorVerticle;
+import org.deer.vertx.mma.rankings.task.scenario.download.and.save.link.FighterProfileResultProcessorVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,15 +37,15 @@ public class MmaRankingsVerticle extends AbstractVerticle implements DeployManag
 
   @Override
   public void start() throws Exception {
-    //todo - for test
-    deployClusterSingleton(vertx, "test-http-server", "test-http-server-lock",
-        TestHttpServerVerticle.class.getName());
+    deployClusterSingleton(vertx, "scrape-http-server",
+        "scrape-http-server-lock",
+        ScrapeHttpServerVerticle.class.getName());
 
     deployClusterSingleton(vertx, "fighter-profile-link-processor",
         "fighter-profile-link-processor-lock",
         FighterProfileResultProcessorVerticle.class.getName());
 
     vertx.deployVerticle(TaskPerformerVerticle.class.getName(),
-        new DeploymentOptions().setInstances(4));
+        new DeploymentOptions().setInstances(20));
   }
 }

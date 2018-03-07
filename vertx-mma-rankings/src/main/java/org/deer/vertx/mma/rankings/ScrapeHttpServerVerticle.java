@@ -20,7 +20,8 @@ import static org.deer.vertx.cluster.queue.task.QueuedTaskState.RETRIEVED;
 import static org.deer.vertx.cluster.queue.task.QueuedTaskState.STARTED;
 import static org.deer.vertx.cluster.queue.task.QueuedTaskState.SUBMITED;
 import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.LOW;
-import static org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.PageRequestWithLinkParseAndSaveTask.PAGE_REQUEST_WITH_LINK_PARSE_AND_SAVE_TASK;
+import static org.deer.vertx.mma.rankings.task.scenario.download.and.save.link.PageRequestWithLinkParseAndSaveTask.PAGE_REQUEST_WITH_LINK_PARSE_AND_SAVE_TASK;
+import static org.deer.vertx.mma.rankings.task.scenario.generate.fighters.from.links.GenerateFighterFromLinkTask.GENERATE_FIGHTER_FROM_LINK_TASK;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
@@ -28,15 +29,18 @@ import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.web.Router;
+import java.util.concurrent.atomic.AtomicLong;
 import org.deer.vertx.cluster.common.mongo.MongoClientUser;
 import org.deer.vertx.cluster.queue.task.QueuedTaskState;
 import org.deer.vertx.cluster.queue.task.TaskDescription;
 import org.deer.vertx.cluster.queue.task.TaskSubmitter;
+import org.deer.vertx.mma.rankings.task.scenario.download.and.save.fighter.profiles.DownloadFighterProfileTask;
 
 
-public class TestHttpServerVerticle extends AbstractVerticle implements TaskSubmitter,
+public class ScrapeHttpServerVerticle extends AbstractVerticle implements TaskSubmitter,
     MongoClientUser {
 
   @Override
@@ -109,7 +113,68 @@ public class TestHttpServerVerticle extends AbstractVerticle implements TaskSubm
           }
         });
 
-    httpServer.requestHandler(router::accept).listen(8444);
+    router.route("/api/v1/mma/generate-fighters-from-links")
+        .handler(routingContext -> connectDedicatedToMongo(vertx)
+            .setHandler(mongoClientAsyncResult -> {
+              if (mongoClientAsyncResult.succeeded()) {
+                final MongoClient client = mongoClientAsyncResult.result();
+
+                final AtomicLong refGenerator = new AtomicLong(1);
+                client.findBatch("fighter-link", new JsonObject())
+                    .handler(entries -> {
+                      final TaskDescription taskDescriptor = createTaskDescriptor(
+                          GENERATE_FIGHTER_FROM_LINK_TASK,
+                          new JsonObject().put("link", entries.getString("link"))
+                              .put("ref", refGenerator.getAndIncrement()));
+
+                      vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescriptor));
+                    })
+                    .endHandler(aVoid -> {
+                      routingContext.response().end("All tasks submited");
+                      client.close();
+                    })
+                    .exceptionHandler(routingContext::fail);
+              } else {
+                routingContext.fail(mongoClientAsyncResult.cause());
+              }
+            }));
+
+    router.route("/api/v1/mma/download-fights")
+        .handler(routingContext -> {
+          connectDedicatedToMongo(vertx)
+              .setHandler(mongoClientAsyncResult -> {
+                if (mongoClientAsyncResult.succeeded()) {
+                  final MongoClient client = mongoClientAsyncResult.result();
+
+                  client.findBatchWithOptions("fighter", new JsonObject(),
+                      new FindOptions().setFields(new JsonObject().put("profileLink", 1)
+                          .put("ref", 1)))
+                      .handler(entries -> {
+
+                        final JsonObject entry = JsonObject.class.cast(entries);
+
+                        final Long fighterRef = entry.getLong("ref");
+                        final String profileLink = entry.getString("profileLink");
+
+                        final TaskDescription taskDescriptor = createTaskDescriptor(
+                            DownloadFighterProfileTask.DOWNLOAD_FIGHTER_PROFILE,
+                            new JsonObject().put("link", profileLink)
+                                .put("fighter-ref", fighterRef));
+
+                        vertx.eventBus().send("task-submit", JsonObject.mapFrom(taskDescriptor));
+                      })
+                      .exceptionHandler(routingContext::fail)
+                      .endHandler(aVoid -> {
+                        routingContext.response().end("All tasks submitted");
+                        client.close();
+                      });
+                } else {
+                  routingContext.fail(mongoClientAsyncResult.cause());
+                }
+              });
+        });
+
+    httpServer.requestHandler(router::accept).listen(8445);
   }
 
   private static JsonObject filterState(QueuedTaskState started) {

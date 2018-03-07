@@ -42,41 +42,47 @@ public class TaskPerformerVerticle extends AbstractVerticle implements MongoClie
           }
 
           executorFactory = new TaskExecutorFactoryImpl(clientResult.result());
-
-          vertx.setPeriodic(15000, event -> {
-            final Future<Message<Object>> taskRetrievalFuture = Future.future();
-            vertx.eventBus().send("task-get", null, taskRetrievalFuture);
-
-            final Future<String> deployFuture = Future.future();
-            taskRetrievalFuture.setHandler(taskRetrievalEvent -> {
-              if (taskRetrievalEvent.succeeded()) {
-                if (taskRetrievalEvent.result().body() == null) {
-                  LOG.trace("No tasks in queue");
-                  return;
-                }
-
-                final QueuedTask queuedTask = JsonObject
-                    .mapFrom(taskRetrievalEvent.result().body())
-                    .mapTo(QueuedTask.class);
-
-                LOG.info("Starting {}", queuedTask.getDescription().getName());
-
-                final AbstractTaskExecutor executor = executorFactory.createExecutor(queuedTask);
-                vertx.deployVerticle(executor, new DeploymentOptions().setWorker(true),
-                    deployFuture);
-              } else {
-                LOG.trace("Cannot retrieve task", taskRetrievalEvent.cause());
-              }
-            });
-
-            deployFuture.setHandler(deployEvent -> {
-              if (deployEvent.failed()) {
-                LOG.error("Task failed", deployEvent.cause());
-              }
-            });
-
-          });
+          retrieveAndStartTask();
           startFuture.complete();
         });
+  }
+
+  private void retrieveAndStartTask() {
+    final Future<Message<Object>> taskRetrievalFuture = Future.future();
+    vertx.eventBus().send("task-get", null, taskRetrievalFuture);
+
+    final Future<String> deployFuture = Future.future();
+    taskRetrievalFuture.setHandler(taskRetrievalEvent -> {
+      if (taskRetrievalEvent.succeeded()) {
+        if (taskRetrievalEvent.result().body() == null) {
+          LOG.trace("No tasks in queue");
+          //no task retrieved, wait 50 millis and try again
+          vertx.setTimer(50, aLong -> retrieveAndStartTask());
+          return;
+        }
+
+        final QueuedTask queuedTask = JsonObject
+            .mapFrom(taskRetrievalEvent.result().body())
+            .mapTo(QueuedTask.class);
+
+        LOG.info("Starting {}", queuedTask.getDescription().getName());
+
+        final AbstractTaskExecutor executor = executorFactory.createExecutor(queuedTask);
+        vertx.deployVerticle(executor, new DeploymentOptions().setWorker(true),
+            deployFuture);
+      } else {
+        LOG.trace("Cannot retrieve task", taskRetrievalEvent.cause());
+        //failed to retrieve task, wait 50 millis and try again
+        vertx.setTimer(50, aLong -> retrieveAndStartTask());
+      }
+    });
+
+    deployFuture.setHandler(deployEvent -> {
+      if (deployEvent.failed()) {
+        LOG.error("Task failed", deployEvent.cause());
+      }
+      //start another
+      retrieveAndStartTask();
+    });
   }
 }

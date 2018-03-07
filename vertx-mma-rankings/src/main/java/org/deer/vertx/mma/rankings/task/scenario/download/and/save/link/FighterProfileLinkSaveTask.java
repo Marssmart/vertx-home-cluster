@@ -12,7 +12,7 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.download.and.save.link.scenario;
+package org.deer.vertx.mma.rankings.task.scenario.download.and.save.link;
 
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;

@@ -12,9 +12,9 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.download.and.save.link.scenario;
+package org.deer.vertx.mma.rankings.task.scenario.download.and.save.link;
 
-import static org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.PageRequestWithLinkParseAndSaveTask.PAGE_REQUEST_WITH_LINK_PARSE_AND_SAVE_TASK;
+import static org.deer.vertx.mma.rankings.task.scenario.download.and.save.link.PageRequestWithLinkParseAndSaveTask.PAGE_REQUEST_WITH_LINK_PARSE_AND_SAVE_TASK;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;

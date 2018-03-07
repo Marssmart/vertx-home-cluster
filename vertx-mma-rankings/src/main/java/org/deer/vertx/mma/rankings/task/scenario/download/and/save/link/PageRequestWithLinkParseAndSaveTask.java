@@ -12,10 +12,10 @@
  * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  */
 
-package org.deer.vertx.mma.rankings.task.download.and.save.link.scenario;
+package org.deer.vertx.mma.rankings.task.scenario.download.and.save.link;
 
 import static org.deer.vertx.cluster.queue.task.TaskDescription.TaskPriority.HIGH;
-import static org.deer.vertx.mma.rankings.task.download.and.save.link.scenario.FighterProfileLinkSaveTask.FIGHTER_PROFILE_LINK_AND_SAVE_TASK;
+import static org.deer.vertx.mma.rankings.task.scenario.download.and.save.link.FighterProfileLinkSaveTask.FIGHTER_PROFILE_LINK_AND_SAVE_TASK;
 
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import io.vertx.core.json.JsonObject;
